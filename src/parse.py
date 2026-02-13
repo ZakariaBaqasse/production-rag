@@ -3,8 +3,9 @@ import hashlib
 import json
 from pathlib import Path
 from llama_cloud import AsyncLlamaCloud
-from llama_cloud.types.parsing_get_response import MarkdownPage
+from llama_cloud.types.parsing_get_response import MarkdownPageMarkdownResultPage
 from loguru import logger
+from langchain_core.documents import Document
 
 CACHE_DIR = Path(".cache/parsed")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -18,7 +19,7 @@ def get_file_hash(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 
-async def parse_file(file_path: str) -> list[MarkdownPage]:
+async def parse_file(file_path: str) -> list[Document]:
     file_hash = get_file_hash(file_path)
     cache_path = CACHE_DIR / f"{file_hash}.json"
 
@@ -27,10 +28,16 @@ async def parse_file(file_path: str) -> list[MarkdownPage]:
         try:
             with open(cache_path, "r") as f:
                 data = json.load(f)
-            return [MarkdownPage(**page) for page in data]
+            markdown_pages = [MarkdownPageMarkdownResultPage(**page) for page in data]
+            return [
+                Document(
+                    page.markdown,
+                    metadata={"page_number": page.page_number, "file_hash": file_hash},
+                )
+                for page in markdown_pages
+            ]
         except Exception as e:
             logger.warning(f"Failed to load cache: {e}")
-
     client = AsyncLlamaCloud(api_key=os.environ.get("LLAMA_CLOUD_API_KEY"))
     # Upload and parse a document
     try:
@@ -62,11 +69,13 @@ async def parse_file(file_path: str) -> list[MarkdownPage]:
         except Exception as e:
             logger.warning(f"Failed to write cache: {e}")
 
-        return result.markdown.pages
+        return [
+            Document(
+                page.markdown,
+                metadata={"page_number": page.page_number, "file_hash": file_hash},
+            )
+            for page in result.markdown.pages
+        ]
     except Exception as e:
         logger.error(f"Error parsing file: {e}")
         return []
-
-
-async def vectorize_file(content: list[MarkdownPage]):
-    pass

@@ -8,4 +8,13 @@ dependencies = [
     "dotenv>=0.9.9",
     "llama-cloud>=1.3.0",
     "loguru>=0.7.3",
+    "asyncpg>=0.29.0",
+    "pgvector>=0.2.5",
+    "ollama>=0.1.7",
+    "langchain>=1.2.10",
+    "langchain-text-splitters>=1.1.0",
+    "langchain-ollama>=1.0.1",
+    "langchain-community>=0.4.1",
+    "langchain-postgres>=0.0.16",
+    "langchain-google-genai>=4.2.0",
 ]
