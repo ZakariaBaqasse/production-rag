@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # noqa: D100
 import asyncpg
 from langchain_ollama import OllamaEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -10,7 +10,7 @@ from src.database import get_db_connection
 load_dotenv()  # Load environment variables from .env file
 
 
-async def search_custom_docs(
+async def search_custom_docs(  # noqa: D103
     query_text: str, top_k: int = 5, model: str = EMBEDDING_MODEL_NAME
 ) -> list[asyncpg.Record]:
     # 1. Embed the query
@@ -42,7 +42,7 @@ async def search_custom_docs(
             await conn.close()
 
 
-async def main():
+async def main():  # noqa: D103
     query = "What is the maximum operating temperature of the ESP32?"
     results = await search_custom_docs(query)
     logger.info(f"Top {len(results)} results for query: '{query}'")

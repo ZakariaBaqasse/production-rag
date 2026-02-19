@@ -1,4 +1,4 @@
-import json
+import json  # noqa: D100
 import re
 
 from loguru import logger
@@ -150,9 +150,7 @@ async def embed_documents(
 
 
 async def store_embeddings_in_db(embeddings: list[float], chunks: list[Document]):
-    """
-    Store the generated embeddings in the PostgreSQL database.
-    """
+    """Store the generated embeddings in the PostgreSQL database."""
     logger.info("Inserting into custom 'document_pages' table...")
 
     for i, chunk in enumerate(chunks):

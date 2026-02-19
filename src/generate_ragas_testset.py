@@ -1,4 +1,4 @@
-import argparse
+import argparse  # noqa: D100
 import asyncio
 from pathlib import Path
 
@@ -18,7 +18,7 @@ from src.constants import (
 from src.parse import parse_file
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> argparse.Namespace:  # noqa: D103
     parser = argparse.ArgumentParser(
         description="Generate a baseline RAGAS testset from a source PDF."
     )
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def main() -> None:
+async def main() -> None:  # noqa: D103
     load_dotenv()
     args = parse_args()
 

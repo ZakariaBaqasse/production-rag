@@ -1,4 +1,4 @@
-import os
+import os  # noqa: D100
 import hashlib
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ CACHE_DIR = Path(".cache/parsed")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_file_hash(file_path: str) -> str:
+def get_file_hash(file_path: str) -> str:  # noqa: D103
     sha256_hash = hashlib.sha256()
     with open(file_path, "rb") as f:
         for byte_block in iter(lambda: f.read(4096), b""):
@@ -19,14 +19,14 @@ def get_file_hash(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 
-async def parse_file(file_path: str) -> list[Document]:
+async def parse_file(file_path: str) -> list[Document]:  # noqa: D103
     file_hash = get_file_hash(file_path)
     cache_path = CACHE_DIR / f"{file_hash}.json"
 
     if cache_path.exists():
         logger.info(f"Using cached result for {file_path}")
         try:
-            with open(cache_path, "r") as f:
+            with open(cache_path) as f:
                 data = json.load(f)
             markdown_pages = [MarkdownPageMarkdownResultPage(**page) for page in data]
             return [

@@ -1,4 +1,4 @@
-import asyncio
+import asyncio  # noqa: D100
 from loguru import logger
 from src.embeddings import embed_documents
 from src.parse import parse_file
@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 
 
-async def main():
+async def main():  # noqa: D103
     logger.info("Initializing database...")
     await init_db()
     logger.info("Database initialized.")

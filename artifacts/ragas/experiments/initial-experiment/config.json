@@ -1,0 +1,11 @@
+{
+  "experiment_name": "initial-experiment",
+  "testset_path": "artifacts/ragas/curated_testset.csv",
+  "output_dir": "artifacts/ragas/experiments",
+  "top_k": 5,
+  "similarity_threshold": null,
+  "reranker": "none",
+  "chat_model": "minimax-m2.5",
+  "eval_model": "gpt-4o-mini",
+  "embedding_model": "qwen3-embedding:0.6b"
+}

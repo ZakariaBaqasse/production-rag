@@ -1,0 +1,124 @@
+{
+  "experiment_name": "initial-experiment",
+  "timestamp": "2026-02-19T13:59:48.111241+00:00",
+  "config": {
+    "experiment_name": "initial-experiment",
+    "testset_path": "artifacts/ragas/curated_testset.csv",
+    "output_dir": "artifacts/ragas/experiments",
+    "top_k": 5,
+    "similarity_threshold": null,
+    "reranker": "none",
+    "chat_model": "minimax-m2.5",
+    "eval_model": "gpt-4o-mini",
+    "embedding_model": "qwen3-embedding:0.6b"
+  },
+  "overall": {
+    "context_precision": 0.8233796295942944,
+    "context_recall": 0.9184027777777777,
+    "faithfulness": 0.8580039173789173,
+    "factual_correctness": 0.6677083333333332,
+    "answer_relevancy": 0.7579402563458834
+  },
+  "per_category": {
+    "adversarial": {
+      "context_precision": 0.891820987613008,
+      "context_recall": 1.0,
+      "faithfulness": 0.7784900284900285,
+      "factual_correctness": 0.6833333333333332,
+      "answer_relevancy": 0.7892543811090079,
+      "count": 9
+    },
+    "cross_section_synthesis": {
+      "context_precision": 0.8008333332986876,
+      "context_recall": 0.9333333333333332,
+      "faithfulness": 0.8099999999999999,
+      "factual_correctness": 0.6519999999999999,
+      "answer_relevancy": 0.7950734135065847,
+      "count": 5
+    },
+    "pin_mapping": {
+      "context_precision": 0.9068287036768354,
+      "context_recall": 0.8958333333333334,
+      "faithfulness": 0.861111111111111,
+      "factual_correctness": 0.6383333333333333,
+      "answer_relevancy": 0.7182530918425282,
+      "count": 12
+    },
+    "table_extraction": {
+      "context_precision": 0.7549873736997089,
+      "context_recall": 0.8939393939393938,
+      "faithfulness": 0.8997474747474747,
+      "factual_correctness": 0.680909090909091,
+      "answer_relevancy": 0.7583381229535484,
+      "count": 22
+    }
+  },
+  "failures": [
+    {
+      "user_input": "What are the absolute maximum voltage and storage temperature ratings for the ESP32 according to the datasheet?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.0,
+      "context_recall": 0.3333333333333333
+    },
+    {
+      "user_input": "What is the Bluetooth Basic Data Rate receiver sensitivity and adjacent channel selectivity at F0+1 MHz for the ESP32?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.4,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "Can you detail the technical specifications regarding Bluetooth LE compliance, sensitivity, and controller capabilities listed in the features?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.36,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "In the ESP32 GPIO_Matrix, what is signal number 63 and does it have a corresponding IO_MUX core input?",
+      "question_category": "pin_mapping",
+      "factual_correctness": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "user_input": "What specific voltage and result conditions lead to a degradation in ADC accuracy when using an attenuation of 3?",
+      "question_category": "adversarial",
+      "factual_correctness": 0.4,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "What is the Wi-Fi receiver sensitivity for 802.11b at 1 Mbps and for 802.11n HT20 MCS7 on the ESP32?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.4,
+      "context_recall": 0.6666666666666666
+    },
+    {
+      "user_input": "The MTDI pin on the ESP32 is a strapping pin. What voltage does it control, and what ADC and touch sensor functions does it also serve?",
+      "question_category": "cross_section_synthesis",
+      "factual_correctness": 0.18,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "Which GPIO pins are mapped to touch sensor signals T5 and T8 on the ESP32?",
+      "question_category": "pin_mapping",
+      "factual_correctness": 0.44,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "If VDD_SDIO is connected to the same PCB net as VDD3P3_RTC, how is the internal LDO affected and what is the status of the internal 6 $\\Omega$ resistor?",
+      "question_category": "adversarial",
+      "factual_correctness": 0.29,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "What are the ESD protection ratings (HBM and CDM) for the ESP32?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.25,
+      "context_recall": 0.0
+    },
+    {
+      "user_input": "What is the Bluetooth LE transmitter power control range and adjacent channel transmit power at F0\u00b12 MHz on the ESP32?",
+      "question_category": "table_extraction",
+      "factual_correctness": 0.33,
+      "context_recall": 1.0
+    }
+  ]
+}
