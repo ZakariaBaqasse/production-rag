@@ -4,8 +4,12 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from loguru import logger
 from dotenv import load_dotenv
-from src.constants import CHAT_MODEL_NAME, EMBEDDING_MODEL_NAME, OLLAMA_BASE_URL
-from src.database import get_db_connection
+from production_rag.core.config import (
+    CHAT_MODEL_NAME,
+    EMBEDDING_MODEL_NAME,
+    OLLAMA_BASE_URL,
+)
+from production_rag.core.database import get_db_connection
 
 load_dotenv()  # Load environment variables from .env file
 

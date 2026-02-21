@@ -1,24 +1,29 @@
 import asyncio  # noqa: D100
 from loguru import logger
-from src.embeddings import embed_documents
-from src.parse import parse_file
-from src.database import init_db
+from production_rag.pipeline.embeddings import embed_documents
+from production_rag.pipeline.parse import parse_file
+from production_rag.core.database import init_db
 from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env file
 
 
-async def main():  # noqa: D103
+async def _main():  # noqa: D103
     logger.info("Initializing database...")
     await init_db()
     logger.info("Database initialized.")
     logger.info("Parsing documents.")
-    documents = await parse_file("./src/assets/esp32_datasheet.pdf")
+    documents = await parse_file("../data/raw/esp32_datasheet.pdf")
     logger.info(f"Parsed {len(documents)} documents.")
     logger.info("Embedding and storing documents.")
     await embed_documents(documents)
     logger.info("Done.")
 
 
+def main():  # noqa: D103
+    """Synchronous entry point for the rag-ingest CLI command."""
+    asyncio.run(_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

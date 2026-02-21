@@ -39,14 +39,14 @@ from ragas.metrics.base import SimpleBaseMetric
 from ragas.llms import llm_factory
 from tenacity import retry, wait_exponential
 
-from src.constants import (
+from production_rag.core.config import (
     EMBEDDING_MODEL_NAME,
     EVAL_EMBEDDING_MODEL_NAME,
     EVAL_MODEL_NAME,
     OLLAMA_CHAT_MODEL,
     OLLAMA_CLOUD_BASE_URL,
 )
-from src.retrieve import search_custom_docs
+from production_rag.pipeline.retrieve import search_custom_docs
 
 
 @dataclass
@@ -105,13 +105,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--testset",
         type=str,
-        default="./artifacts/ragas/curated_testset.csv",
+        default="./artifacts/testsets/curated_testset.csv",
         help="Path to curated testset CSV.",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="./artifacts/ragas/experiments",
+        default="./artifacts/experiments",
         help="Directory where experiment artifacts are saved.",
     )
     parser.add_argument(
@@ -448,8 +448,8 @@ def print_summary(report: dict[str, Any]) -> None:
     logger.info("Failure spotlight (factual_correctness < 0.5): {}", len(failures))
 
 
-async def main() -> None:
-    """CLI entrypoint for running one complete evaluation experiment."""
+async def _main() -> None:
+    """Async implementation of the evaluation experiment CLI."""
     load_dotenv()
     args = parse_args()
 
@@ -530,5 +530,10 @@ async def main() -> None:
     logger.info("Saved report: {}", report_path)
 
 
+def main() -> None:
+    """Synchronous entry point for the rag-evaluate CLI command."""
+    asyncio.run(_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

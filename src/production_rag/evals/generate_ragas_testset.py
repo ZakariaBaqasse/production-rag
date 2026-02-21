@@ -10,12 +10,12 @@ from ragas.testset import TestsetGenerator
 from ragas.testset.persona import Persona
 from ragas.testset.synthesizers import SingleHopSpecificQuerySynthesizer
 from ragas.testset.transforms.extractors import NERExtractor
-from src.constants import (
+from production_rag.core.config import (
     CHAT_MODEL_NAME,
     EMBEDDING_MODEL_NAME,
     OLLAMA_BASE_URL,
 )
-from src.parse import parse_file
+from production_rag.pipeline.parse import parse_file
 
 
 def parse_args() -> argparse.Namespace:  # noqa: D103
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:  # noqa: D103
     return parser.parse_args()
 
 
-async def main() -> None:  # noqa: D103
+async def _main() -> None:  # noqa: D103
     load_dotenv()
     args = parse_args()
 
@@ -211,5 +211,10 @@ async def main() -> None:  # noqa: D103
     logger.info("CSV: {}", csv_path)
 
 
+def main() -> None:
+    """Synchronous entry point for the rag-generate-testset CLI command."""
+    asyncio.run(_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

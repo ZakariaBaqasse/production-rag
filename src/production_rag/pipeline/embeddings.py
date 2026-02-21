@@ -9,8 +9,8 @@ from langchain_text_splitters import (
 )
 from langchain_ollama import OllamaEmbeddings
 
-from src.constants import EMBEDDING_MODEL_NAME, OLLAMA_BASE_URL
-from src.database import get_db_connection
+from production_rag.core.config import EMBEDDING_MODEL_NAME, OLLAMA_BASE_URL
+from production_rag.core.database import get_db_connection
 
 HEADERS_TO_SPLIT_ON = [
     ("#", "Header 1"),
