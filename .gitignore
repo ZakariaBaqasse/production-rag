@@ -6,3 +6,4 @@
 ./.vscode/
 ./.idea/
 .copilot/
+./mypy_cache/
