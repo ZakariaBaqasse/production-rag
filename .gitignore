@@ -1,9 +1,9 @@
 .env
 .cache/
-./*/*.pyc
-./*/__pycache__/
-./.DS_Store
-./.vscode/
-./.idea/
+**/*.pyc
+**/__pycache__/
+.DS_Store
+.vscode/
+.idea/
 .copilot/
-./mypy_cache/
+.mypy_cache/
