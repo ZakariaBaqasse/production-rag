@@ -30,6 +30,8 @@ from production_rag.evals.metrics import build_ragas_metrics, score_sample_metri
 from production_rag.evals.reporting import (
     compute_report,
     ensure_experiment_dir,
+    print_artifacts_panel,
+    print_startup_panel,
     print_summary,
 )
 from production_rag.evals.schemas import ExperimentConfig, ExperimentResult
@@ -133,6 +135,21 @@ async def _main() -> None:
     rows = load_testset(testset_path)
     logger.info("Loaded {} evaluation samples", len(rows))
 
+    print_startup_panel(
+        experiment_name=experiment_name,
+        config_file=config_path,
+        testset_path=testset_path,
+        sample_count=len(rows),
+        chat_model=app_config.pipeline.chat.model,
+        chat_provider=app_config.pipeline.chat.provider,
+        embedding_model=app_config.pipeline.embeddings.model,
+        embedding_provider=app_config.pipeline.embeddings.provider,
+        eval_model=app_config.eval.llm.model,
+        eval_provider=app_config.eval.llm.provider,
+        top_k=app_config.retrieval.top_k,
+        similarity_threshold=app_config.retrieval.similarity_threshold,
+    )
+
     dataset = Dataset(
         name="curated_testset",
         backend="inmemory",
@@ -182,10 +199,12 @@ async def _main() -> None:
     with open(report_path, "w") as report_file:
         json.dump(report, report_file, indent=2)
 
-    logger.info("Saved config: {}", config_path)
-    logger.info("Saved raw results: {}", results_path)
-    logger.info("Saved scored rows: {}", scores_path)
-    logger.info("Saved report: {}", report_path)
+    print_artifacts_panel(
+        config_path=config_path,
+        results_path=results_path,
+        scores_path=scores_path,
+        report_path=report_path,
+    )
 
 
 def main() -> None:

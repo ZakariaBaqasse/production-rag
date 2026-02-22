@@ -1871,6 +1871,7 @@ dependencies = [
     { name = "pgvector" },
     { name = "ragas" },
     { name = "rapidfuzz" },
+    { name = "rich" },
     { name = "tenacity" },
 ]
 
@@ -1900,6 +1901,7 @@ requires-dist = [
     { name = "pgvector", specifier = ">=0.2.5" },
     { name = "ragas", specifier = "==0.4.3" },
     { name = "rapidfuzz", specifier = ">=3.14.3" },
+    { name = "rich", specifier = ">=14.0.0" },
     { name = "tenacity", specifier = ">=9.1.4" },
 ]
 
