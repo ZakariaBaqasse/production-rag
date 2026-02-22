@@ -7,10 +7,10 @@ from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
 )
-from langchain_ollama import OllamaEmbeddings
 
-from production_rag.core.config import EMBEDDING_MODEL_NAME, OLLAMA_BASE_URL
+from production_rag.core.config import ModelConfig
 from production_rag.core.database import get_db_connection
+from production_rag.pipeline.utils import get_embedding_model
 
 HEADERS_TO_SPLIT_ON = [
     ("#", "Header 1"),
@@ -122,7 +122,7 @@ def split_markdown_documents(documents: list[Document]) -> list[Document]:
 
 
 async def embed_documents(
-    documents: list[Document], model: str = EMBEDDING_MODEL_NAME
+    documents: list[Document], model_config: ModelConfig
 ) -> list[float]:
     """Chunk markdown documents, embed chunks, and persist vectors in batches."""
     try:
@@ -131,7 +131,7 @@ async def embed_documents(
         logger.info(f"--- 3. Embedding & Indexing {len(chunks)} Chunks ---")
 
         # Using your local Qwen model
-        embeddings = OllamaEmbeddings(model=model, base_url=OLLAMA_BASE_URL)
+        embeddings = get_embedding_model(model_config)
 
         # Generate embeddings for all chunks (run in thread to avoid blocking)
         logger.info("Generating embeddings and storing in database...")
@@ -143,7 +143,7 @@ async def embed_documents(
             batch_embeddings = await embeddings.aembed_documents(batch_content)
             await store_embeddings_in_db(batch_embeddings, batch_chunks)
     except Exception as e:
-        logger.error(f"Error getting embedding from Ollama: {e}")
+        logger.error(f"Error getting embedding from {model_config.provider}: {e}")
         # Return empty list or re-raise depending on strategy.
         # Here we re-raise to catch upstream
         raise

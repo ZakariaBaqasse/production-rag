@@ -1,0 +1,23 @@
+# configs/local-ollama.yaml
+pipeline:
+  chat:
+    model: "minimax-m2.5"
+    provider: "ollama"
+    base_url: "http://ollama.com"
+  embeddings:
+    model: "qwen3-embedding:0.6b"
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+
+eval:
+  llm:
+    model: "gpt-4o-mini"
+    provider: "openai"
+  embeddings:
+    model: "text-embedding-3-small"
+    provider: "openai"
+
+retrieval:
+  top_k: 5
+  similarity_threshold: null
+  reranker: "none"

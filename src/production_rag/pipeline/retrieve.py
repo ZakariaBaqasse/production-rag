@@ -1,24 +1,29 @@
-import asyncio  # noqa: D100
+"""Retrieval and answer generation module for the production RAG pipeline.
+
+This module provides functions to:
+- search_custom_docs: retrieve relevant documents using vector similarity search
+- generate_answer: generate answers using a language model based on retrieved documents
+"""
+
 import asyncpg
-from langchain_ollama import OllamaEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models import init_chat_model
 from loguru import logger
 from dotenv import load_dotenv
+from tenacity import retry, wait_exponential
 from production_rag.core.config import (
-    CHAT_MODEL_NAME,
-    EMBEDDING_MODEL_NAME,
-    OLLAMA_BASE_URL,
+    ModelConfig,
 )
 from production_rag.core.database import get_db_connection
+from production_rag.pipeline.utils import get_embedding_model
 
 load_dotenv()  # Load environment variables from .env file
 
 
 async def search_custom_docs(  # noqa: D103
-    query_text: str, top_k: int = 5, model: str = EMBEDDING_MODEL_NAME
+    query_text: str, model_config: ModelConfig, top_k: int = 5
 ) -> list[asyncpg.Record]:
     # 1. Embed the query
-    embeddings = OllamaEmbeddings(model=model, base_url=OLLAMA_BASE_URL)
+    embeddings = get_embedding_model(model_config)
     query_vector = await embeddings.aembed_query(query_text)
     vector_str = "[" + ",".join(map(str, query_vector)) + "]"
     # 2. Run Cosine Similarity Search via SQL
@@ -46,31 +51,38 @@ async def search_custom_docs(  # noqa: D103
             await conn.close()
 
 
-async def main():  # noqa: D103
-    query = "What is the maximum operating temperature of the ESP32?"
-    results = await search_custom_docs(query)
-    logger.info(f"Top {len(results)} results for query: '{query}'")
-    model = ChatGoogleGenerativeAI(model=CHAT_MODEL_NAME)
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a helpful assistant that answers questions based on the provided document excerpts.",
-        },
-        {
-            "role": "user",
-            "content": f"Based on the following document excerpts, answer the question: '{query}'\n\n"
-            + "\n\n".join(
-                [
-                    f"Excerpt {i + 1} (Page {row['page_number']}): {row['content']}"
-                    for i, row in enumerate(results)
-                ]
-            ),
-        },
-    ]
-    async for chunk in model.astream(messages):
-        if chunk.content:
-            print(chunk.content[0]["text"], end="", flush=True)
+generation_system_prompt = """You are an assistant that answers questions based on the provided context from a document:"""
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@retry(wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+async def generate_answer(  # noqa: D103
+    query_text: str, retrieved_docs: list[asyncpg.Record], model_config: ModelConfig
+) -> str:
+    # 1. Format the retrieved documents into a context string
+    context = "\n\n".join(
+        f"Page {doc['page_number']}:\n{doc['content']}"
+        for doc in retrieved_docs
+        if doc["content"]
+    )
+    # 2. Create the prompt for the language model
+    prompt = generation_system_prompt.format(context=context, query_text=query_text)
+    # 3. Generate the answer using the language model
+    llm = init_chat_model(
+        model=model_config.model,
+        provider=model_config.provider,
+        base_url=model_config.base_url,
+    )
+    try:
+        response = await llm.agenerate(
+            messages=[
+                {"role": "system", "content": prompt},
+                {
+                    "role": "user",
+                    "content": f"CONTEXT: {context} \n\n Question: {query_text}\nAnswer based on the context above.",
+                },
+            ]
+        )
+        return response.generations[0][0].text.strip()
+    except Exception as e:
+        logger.error(f"Failed to generate answer: {e}")
+        return "Sorry, I couldn't generate an answer at this time."
