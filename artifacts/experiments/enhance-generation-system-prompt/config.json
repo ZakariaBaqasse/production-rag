@@ -1,0 +1,11 @@
+{
+  "experiment_name": "enhance-generation-system-prompt",
+  "testset_path": "artifacts/testsets/curated_testset.csv",
+  "output_dir": "artifacts/experiments",
+  "top_k": 5,
+  "similarity_threshold": null,
+  "reranker": "none",
+  "chat_model": "gemini-3-pro-preview",
+  "eval_model": "gpt-4o-mini",
+  "embedding_model": "qwen3-embedding:0.6b"
+}

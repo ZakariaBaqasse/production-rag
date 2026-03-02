@@ -26,6 +26,7 @@ from production_rag.core.config import (
 )
 from production_rag.evals.cli import parse_args
 from production_rag.evals.metrics import build_ragas_metrics, score_sample_metrics
+from production_rag.evals.mlflow_tracking import log_run_to_mlflow
 from production_rag.evals.reporting import (
     compute_report,
     ensure_experiment_dir,
@@ -204,6 +205,20 @@ async def _main() -> None:
         scores_path=scores_path,
         report_path=report_path,
     )
+
+    # --- MLflow tracking (opt-out with --no-mlflow) ---
+    if not args.no_mlflow:
+        run_id = log_run_to_mlflow(
+            report=report,
+            config=config,
+            run_dir=run_dir,
+            tracking_uri=args.mlflow_tracking_uri,
+        )
+        logger.info("MLflow run logged. Run ID: {}", run_id)
+        logger.info(
+            "View UI: mlflow ui --backend-store-uri {}",
+            args.mlflow_tracking_uri,
+        )
 
 
 def main() -> None:
