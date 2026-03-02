@@ -30,6 +30,8 @@ class ModelConfig(BaseModel):
     model: str
     provider: str
     base_url: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
 
 
 class PipelineConfig(BaseModel):

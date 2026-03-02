@@ -10,7 +10,6 @@ This module executes the end-to-end Phase 2 evaluation flow:
 
 import asyncio
 import json
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -191,7 +190,7 @@ async def _main() -> None:
     report_path = run_dir / "report.json"
 
     with open(config_path, "w") as config_file:
-        json.dump(asdict(config), config_file, indent=2)
+        json.dump(config.model_dump(), config_file, indent=2)
 
     experiment_df.to_csv(results_path, index=False)
     merged_scores_df.to_csv(scores_path, index=False)

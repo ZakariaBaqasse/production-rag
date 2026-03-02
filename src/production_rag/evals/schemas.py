@@ -4,13 +4,10 @@ This module defines the data models used for storing experiment configurations
 and evaluation results, including per-sample outputs with RAGAS scoring metrics.
 """
 
-from dataclasses import dataclass
-
 from pydantic import BaseModel
 
 
-@dataclass
-class ExperimentConfig:
+class ExperimentConfig(BaseModel):
     """Configuration snapshot for a single evaluation run.
 
     Stored to disk so every experiment can be reproduced and compared.

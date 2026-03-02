@@ -12,7 +12,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from attr import asdict
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
@@ -88,7 +87,7 @@ def compute_report(scores_df: pd.DataFrame, config: ExperimentConfig) -> dict[st
     return {
         "experiment_name": config.experiment_name,
         "timestamp": datetime.now(UTC).isoformat(),
-        "config": asdict(config),
+        "config": config.model_dump(),
         "overall": overall,
         "per_category": per_category,
         "failures": failures,
