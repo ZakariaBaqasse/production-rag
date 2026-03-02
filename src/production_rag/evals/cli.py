@@ -3,6 +3,7 @@
 This module provides command-line argument parsing for running RAGAS
 evaluation using the curated testset and the live RAG pipeline.
 """
+
 import argparse
 
 
@@ -34,5 +35,20 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="./config/experiment_config.yaml",
         help="Path to the experiment configuration file.",
+    )
+    parser.add_argument(
+        "--mlflow-tracking-uri",
+        type=str,
+        default="sqlite:///mlruns.db",
+        help=(
+            "MLflow tracking URI. Defaults to a local SQLite database 'mlruns.db'. "
+            "Pass an http:// URL to log to a remote tracking server."
+        ),
+    )
+    parser.add_argument(
+        "--no-mlflow",
+        action="store_true",
+        default=False,
+        help="Disable MLflow tracking for this run.",
     )
     return parser.parse_args()
