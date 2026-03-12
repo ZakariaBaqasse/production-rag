@@ -1,6 +1,6 @@
 {
-  "experiment_name": "enhance-generation-system-prompt",
-  "testset_path": "artifacts/testsets/curated_testset.csv",
+  "experiment_name": "table-aware-chunking-with-subtables",
+  "testset_path": "artifacts/testsets/final_ragas_testset.csv",
   "output_dir": "artifacts/experiments",
   "top_k": 5,
   "similarity_threshold": null,

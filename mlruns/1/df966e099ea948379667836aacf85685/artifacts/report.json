@@ -1,0 +1,182 @@
+{
+  "experiment_name": "table-aware-chunking-with-subtables",
+  "timestamp": "2026-03-11T16:10:42.256085+00:00",
+  "config": {
+    "experiment_name": "table-aware-chunking-with-subtables",
+    "testset_path": "artifacts/testsets/final_ragas_testset.csv",
+    "output_dir": "artifacts/experiments",
+    "top_k": 5,
+    "similarity_threshold": null,
+    "reranker": "none",
+    "chat_model": "gemini-3.1-flash-lite-preview",
+    "eval_model": "gpt-4o-mini",
+    "embedding_model": "qwen3-embedding:0.6b"
+  },
+  "overall": {
+    "context_precision": 0.7074942129310268,
+    "context_recall": 0.8559027777777777,
+    "faithfulness": 0.8329011844636846,
+    "factual_correctness": 0.56375,
+    "answer_relevancy": 0.4916258633462551
+  },
+  "per_category": {
+    "adversarial": {
+      "context_precision": 0.8555555555091666,
+      "context_recall": 0.7777777777777777,
+      "faithfulness": 0.7916666666666666,
+      "factual_correctness": 0.62,
+      "answer_relevancy": 0.5096921516684861,
+      "count": 3
+    },
+    "adversarial_multi_hop": {
+      "context_precision": 0.7509259258997839,
+      "context_recall": 0.9166666666666666,
+      "faithfulness": 0.6944444444444443,
+      "factual_correctness": 0.625,
+      "answer_relevancy": 0.5308049620089694,
+      "count": 6
+    },
+    "cross_section_synthesis": {
+      "context_precision": 0.5591666666491597,
+      "context_recall": 0.9333333333333332,
+      "faithfulness": 0.9454545454545455,
+      "factual_correctness": 0.34199999999999997,
+      "answer_relevancy": 0.25243109758962134,
+      "count": 5
+    },
+    "pin_mapping": {
+      "context_precision": 0.7439814814561033,
+      "context_recall": 0.8125,
+      "faithfulness": 0.861111111111111,
+      "factual_correctness": 0.6166666666666666,
+      "answer_relevancy": 0.5118169799991262,
+      "count": 12
+    },
+    "table_multi_row_reasoning": {
+      "context_precision": 0.7563888888504329,
+      "context_recall": 0.9166666666666666,
+      "faithfulness": 0.8793650793650792,
+      "factual_correctness": 0.5519999999999999,
+      "answer_relevancy": 0.6089339422752481,
+      "count": 10
+    },
+    "table_single_cell_lookup": {
+      "context_precision": 0.6333333332949768,
+      "context_recall": 0.8055555555555555,
+      "faithfulness": 0.798611111111111,
+      "factual_correctness": 0.5683333333333332,
+      "answer_relevancy": 0.4492363785725723,
+      "count": 12
+    }
+  },
+  "failures": [
+    {
+      "user_input": "what pin number GPIO18 is?",
+      "question_category": "pin_mapping",
+      "factual_correctness": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "user_input": "In the ESP32 GPIO_Matrix, what is signal number 63 and does it have a corresponding IO_MUX core input?",
+      "question_category": "pin_mapping",
+      "factual_correctness": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "user_input": "What is the Wi-Fi receiver sensitivity for 802.11b at 1 Mbps and for 802.11n HT20 MCS7 on the ESP32?",
+      "question_category": "table_multi_row_reasoning",
+      "factual_correctness": 0.0,
+      "context_recall": 0.6666666666666666
+    },
+    {
+      "user_input": "How much current does the ESP32 consume when transmitting 802.11b at 1 Mbps versus 802.11n MCS7?",
+      "question_category": "table_multi_row_reasoning",
+      "factual_correctness": 0.0,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "How does the ESP32 BLE receiver sensitivity compare to the Bluetooth Classic Basic Data Rate sensitivity?",
+      "question_category": "cross_section_synthesis",
+      "factual_correctness": 0.0,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "ESP32-D0WD-V3 maximum CPU frequency specification and power consumption in modem-sleep mode for dual-core chips running at 240 MHz",
+      "question_category": "table_multi_row_reasoning",
+      "factual_correctness": 0.33,
+      "context_recall": 0.5
+    },
+    {
+      "user_input": "Contrast the maximum current capability of the internal LDO (at 1.8 V) with the cumulative IO output current and the recommended power supply output capacity.",
+      "question_category": "adversarial",
+      "factual_correctness": 0.29,
+      "context_recall": 0.6666666666666666
+    },
+    {
+      "user_input": "The MTDI pin on the ESP32 is a strapping pin. What voltage does it control, and what ADC and touch sensor functions does it also serve?",
+      "question_category": "cross_section_synthesis",
+      "factual_correctness": 0.4,
+      "context_recall": 0.6666666666666666
+    },
+    {
+      "user_input": "What are the absolute maximum voltage and storage temperature ratings for the ESP32 according to the datasheet?",
+      "question_category": "table_single_cell_lookup",
+      "factual_correctness": 0.0,
+      "context_recall": 0.3333333333333333
+    },
+    {
+      "user_input": "Which ESP32 models are restricted to an 85 \u00b0C operating temperature, and what is the technical reason for this limitation compared to other models?",
+      "question_category": "adversarial_multi_hop",
+      "factual_correctness": 0.0,
+      "context_recall": 0.5
+    },
+    {
+      "user_input": "What are the ESD protection ratings (HBM and CDM) for the ESP32?",
+      "question_category": "table_single_cell_lookup",
+      "factual_correctness": 0.29,
+      "context_recall": 0.3333333333333333
+    },
+    {
+      "user_input": "What is the Bluetooth Basic Data Rate receiver sensitivity and adjacent channel selectivity at F0+1 MHz for the ESP32?",
+      "question_category": "table_single_cell_lookup",
+      "factual_correctness": 0.0,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "In the context of the ESP32 power scheme and pin definitions, what are the specific power domains and functional characteristics associated with the VDD3P3_RTC and VDD3P3_SDIO pins, and how does the internal LDO behave when VDD_SDIO is connected to the same PCB net as VDD3P3_RTC?",
+      "question_category": "cross_section_synthesis",
+      "factual_correctness": 0.31,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "Which ESP32 GPIO pins support both ADC and capacitive touch sensing simultaneously?",
+      "question_category": "cross_section_synthesis",
+      "factual_correctness": 0.0,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "What is the high-level input voltage threshold (VIH) and the high-level source current (IOH) for VDD3P3_CPU pins in the ESP32 DC characteristics?",
+      "question_category": "table_single_cell_lookup",
+      "factual_correctness": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "user_input": "what voltage ESP32-D0WDRH2-V3 need and how connect VDD_SDIO?",
+      "question_category": "table_multi_row_reasoning",
+      "factual_correctness": 0.44,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "If VDD_SDIO is connected to the same PCB net as VDD3P3_RTC, how is the internal LDO affected and what is the status of the internal 6 $\\Omega$ resistor?",
+      "question_category": "adversarial_multi_hop",
+      "factual_correctness": 0.33,
+      "context_recall": 1.0
+    },
+    {
+      "user_input": "Hey, I am runing some validation checks on the electrical limits and I need to verify the pinout specs, specifically regarding the GND conection, so culd you please identify the pin number asigned to the center pad for the ESP32 chip in the QFN 5*5 pakage?",
+      "question_category": "pin_mapping",
+      "factual_correctness": 0.0,
+      "context_recall": 1.0
+    }
+  ]
+}

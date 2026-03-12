@@ -1,0 +1,11 @@
+{
+  "experiment_name": "custom-ragas-prompt-for-factual-correctness",
+  "testset_path": "artifacts/testsets/final_ragas_testset.csv",
+  "output_dir": "artifacts/experiments",
+  "top_k": 5,
+  "similarity_threshold": null,
+  "reranker": "none",
+  "chat_model": "gemini-3.1-flash-lite-preview",
+  "eval_model": "gpt-4o-mini",
+  "embedding_model": "qwen3-embedding:0.6b"
+}

@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--testset",
         type=str,
-        default="./artifacts/testsets/curated_testset.csv",
+        default="./artifacts/testsets/final_ragas_testset.csv",
         help="Path to curated testset CSV.",
     )
     parser.add_argument(

@@ -2,7 +2,7 @@
 """Generate the curated RAGAS testset CSV.
 
 Writes 18 manually curated questions grounded in actual ESP32 datasheet content
-to artifacts/ragas/curated_testset.csv.  The CSV follows the same schema as
+to artifacts/testsets/curated_testset.csv.  The CSV follows the same schema as
 baseline_testset.csv produced by the RAGAS testset generator.
 """
 
@@ -15,7 +15,7 @@ PARSED = (
     ROOT
     / ".cache/parsed/6fdff42cce00775643335e0ccb1dc1024070bb86208a2c734e9c09675ca3894a.json"
 )
-OUT = ROOT / "artifacts/ragas/curated_testset.csv"
+OUT = ROOT / "artifacts/testsets/curated_testset.csv"
 
 with open(PARSED) as f:
     pages = json.load(f)
@@ -28,9 +28,11 @@ def ctx(page_nums: list[int]) -> str:
 
 
 questions = [
-    # ── Category 1: Hard table extraction (electrical / radio specs) ────────
+    # ── Category 1a: Single-value lookup ──────────────────────────────────────
+    # ── Category 1b: Multi-row table lookup ─────────────────────────────────────
     {
         "user_input": "What are the absolute maximum voltage and storage temperature ratings for the ESP32 according to the datasheet?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([51]),
         "reference": (
             "According to Table 5-1, the absolute maximum allowed input voltage for "
@@ -44,6 +46,7 @@ questions = [
     },
     {
         "user_input": "What is the high-level input voltage threshold (VIH) and the high-level source current (IOH) for VDD3P3_CPU pins in the ESP32 DC characteristics?",
+        "question_category": "single_value_lookup",
         "reference_contexts": ctx([52]),
         "reference": (
             "From Table 5-3, VIH (high-level input voltage) has a minimum of 0.75 × VDD "
@@ -58,6 +61,7 @@ questions = [
     },
     {
         "user_input": "How much current does the ESP32 consume when transmitting 802.11b at 1 Mbps versus 802.11n MCS7?",
+        "question_category": "single_value_lookup",
         "reference_contexts": ctx([52]),
         "reference": (
             "According to Table 5-4, transmitting 802.11b DSSS at 1 Mbps with POUT = +19.5 dBm "
@@ -71,6 +75,7 @@ questions = [
     },
     {
         "user_input": "What is the Wi-Fi receiver sensitivity for 802.11b at 1 Mbps and for 802.11n HT20 MCS7 on the ESP32?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([53, 54]),
         "reference": (
             "From Table 5-6, the typical sensitivity for 802.11b at 1 Mbps is -98 dBm, "
@@ -83,6 +88,7 @@ questions = [
     },
     {
         "user_input": "What is the output impedance of the ESP32 Wi-Fi radio, and how does it differ between QFN package sizes?",
+        "question_category": "single_value_lookup",
         "reference_contexts": ctx([54]),
         "reference": (
             "According to footnote 2 under Table 5-6, the typical Wi-Fi radio output impedance "
@@ -95,6 +101,7 @@ questions = [
     },
     {
         "user_input": "What is the Bluetooth Basic Data Rate receiver sensitivity and adjacent channel selectivity at F0+1 MHz for the ESP32?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([54]),
         "reference": (
             "From Table 5-7, the BT Basic Data Rate receiver sensitivity at 0.1% BER "
@@ -107,6 +114,7 @@ questions = [
     },
     {
         "user_input": "What is the BLE receiver sensitivity and co-channel C/I for the ESP32?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([56]),
         "reference": (
             "From Table 5-11, the BLE receiver sensitivity at 30.8% PER is "
@@ -119,6 +127,7 @@ questions = [
     },
     {
         "user_input": "What is the Bluetooth LE transmitter power control range and adjacent channel transmit power at F0±2 MHz on the ESP32?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([58]),
         "reference": (
             "From Table 5-12, the BLE RF power control range is -12 dBm min to +9 dBm max. "
@@ -131,6 +140,7 @@ questions = [
     },
     {
         "user_input": "What are the ADC DNL and INL specifications, and what is the maximum sampling rate with the DIG controller?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([43]),
         "reference": (
             "From Table 4-3, the ADC DNL (differential nonlinearity) is -7 to +7 LSB, "
@@ -146,6 +156,7 @@ questions = [
     },
     {
         "user_input": "What is the ADC calibration error range when attenuation is set to 3 (atten=3) on the ESP32?",
+        "question_category": "single_value_lookup",
         "reference_contexts": ctx([44]),
         "reference": (
             "From Table 4-4, at Atten = 3 (effective measurement range 150 ~ 2450 mV), "
@@ -160,6 +171,7 @@ questions = [
     # ── Category 2: Pin mapping / peripheral config ─────────────────────────
     {
         "user_input": "Which GPIO pins are mapped to touch sensor signals T5 and T8 on the ESP32?",
+        "question_category": "pin_mapping",
         "reference_contexts": ctx([45]),
         "reference": (
             "According to Table 4-5, touch sensor signal T5 is mapped to pin MTDI, "
@@ -171,6 +183,7 @@ questions = [
     },
     {
         "user_input": "Which pins are ADC2_CH5 and ADC1_CH4 connected to on the ESP32, and what other peripheral functions share those pins?",
+        "question_category": "pin_mapping",
         "reference_contexts": ctx([46]),
         "reference": (
             "From Table 4-6, ADC2_CH5 is connected to pin MTDI, and ADC1_CH4 is connected "
@@ -184,6 +197,7 @@ questions = [
     },
     {
         "user_input": "In the ESP32 GPIO_Matrix, what is signal number 63 and does it have a corresponding IO_MUX core input?",
+        "question_category": "pin_mapping",
         "reference_contexts": ctx([64]),
         "reference": (
             "In Table GPIO_Matrix, signal number 63 has input signal VSPICLK_in "
@@ -197,6 +211,7 @@ questions = [
     },
     {
         "user_input": "What are the ESD protection ratings (HBM and CDM) for the ESP32?",
+        "question_category": "multi_row_table_lookup",
         "reference_contexts": ctx([53]),
         "reference": (
             "From Table 5-5 (Reliability Qualifications), the ESP32 ESD ratings are: "
@@ -213,6 +228,7 @@ questions = [
     # ── Category 3: Cross-section synthesis (require 2+ sections) ───────────
     {
         "user_input": "Which ESP32 GPIO pins support both ADC and capacitive touch sensing simultaneously?",
+        "question_category": "cross_section_synthesis",
         "reference_contexts": ctx([45, 46]),
         "reference": (
             "By cross-referencing Table 4-5 (touch sensor GPIOs) and Table 4-6 "
@@ -230,6 +246,7 @@ questions = [
     },
     {
         "user_input": "The MTDI pin on the ESP32 is a strapping pin. What voltage does it control, and what ADC and touch sensor functions does it also serve?",
+        "question_category": "cross_section_synthesis",
         "reference_contexts": ctx([21, 45, 46]),
         "reference": (
             "MTDI is a strapping pin that controls the VDD_SDIO voltage at reset: "
@@ -244,6 +261,7 @@ questions = [
     },
     {
         "user_input": "How does the ESP32 BLE receiver sensitivity compare to the Bluetooth Classic Basic Data Rate sensitivity?",
+        "question_category": "cross_section_synthesis",
         "reference_contexts": ctx([54, 56]),
         "reference": (
             "The BLE receiver sensitivity (Table 5-11) at 30.8% PER is "
@@ -259,6 +277,7 @@ questions = [
     },
     {
         "user_input": "What is the minimum recommended power supply voltage for ESP32 chips, and why are there two different values listed?",
+        "question_category": "single_value_lookup",
         "reference_contexts": ctx([51]),
         "reference": (
             "From Table 5-2, the minimum recommended voltage for VDDA, VDD3P3_RTC, "
@@ -283,6 +302,7 @@ FIELDS = [
     "query_style",
     "query_length",
     "synthesizer_name",
+    "question_category",
 ]
 
 with open(OUT, "w", newline="") as f:

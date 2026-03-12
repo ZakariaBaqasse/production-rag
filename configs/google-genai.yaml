@@ -12,13 +12,13 @@ pipeline:
 
 eval:
   llm:
-    model: "gpt-4o-mini"
+    model: "gpt-4o"
     provider: "openai"
   embeddings:
     model: "text-embedding-3-small"
     provider: "openai"
 
 retrieval:
-  top_k: 5
+  top_k: 20
   similarity_threshold: null
   reranker: "none"
