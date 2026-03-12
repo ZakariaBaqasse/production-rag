@@ -1,6 +1,6 @@
 {
-  "experiment_name": "initial-experiment",
-  "testset_path": "artifacts/testsets/curated_testset.csv",
+  "experiment_name": "markdown-tables-insteadof-html",
+  "testset_path": "artifacts/testsets/final_ragas_testset.csv",
   "output_dir": "artifacts/experiments",
   "top_k": 5,
   "similarity_threshold": null,

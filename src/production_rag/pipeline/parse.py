@@ -49,6 +49,16 @@ async def parse_file(file_path: str) -> list[Document]:  # noqa: D103
             tier="agentic",
             # The version of the parsing tier to use. Use 'latest' for the most recent version,
             version="latest",
+            # Emit tables as HTML (<table>/<tr>/<td> with colspan/rowspan) instead
+            # of markdown pipe syntax.  Markdown pipe tables cannot represent merged
+            # cells, which are common in ESP32 datasheet parameter tables.
+            output_options={
+                "markdown": {
+                    "tables": {
+                        "output_tables_as_markdown": True,
+                    },
+                },
+            },
             # 'expand' controls which result fields are returned in the response.,
             # Without it, only job metadata is returned. Available fields:,
             # - Content: "text", "markdown", "items", "metadata",

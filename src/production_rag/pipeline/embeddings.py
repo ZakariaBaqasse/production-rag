@@ -1,5 +1,6 @@
 import json  # noqa: D100
 import re
+from dataclasses import dataclass, field
 
 from loguru import logger
 from langchain_core.documents import Document
@@ -23,12 +24,35 @@ HEADERS_TO_SPLIT_ON = [
 CHUNK_SIZE = 1800
 CHUNK_OVERLAP = 200
 
-# Matches fenced code blocks (including mermaid) and markdown pipe tables.
-# These structures should be treated as atomic units during recursive splitting.
+# Matches fenced code blocks only — these remain indivisible atomic units
+# during recursive splitting.  Pipe tables are no longer treated as atomic
+# blocks; they are split at row boundaries via the PipeTable AST instead.
 ATOMIC_BLOCK_PATTERN = re.compile(
-    r"```[\w+-]*\n[\s\S]*?```"
-    r"|^\|.*\|\s*\n^\|(?:\s*:?-{3,}:?\s*\|)+\s*\n(?:^\|.*\|\s*(?:\n|$))+",
+    r"```[\w+-]*\n[\s\S]*?```",
     re.MULTILINE,
+)
+
+# Detection-only pattern: locates contiguous pipe-table blocks within section
+# text.  Used by split_markdown_documents to find tables for row-boundary
+# splitting.  Both header/separator rows and data rows match because they all
+# start and end with a pipe character.
+_PIPE_TABLE_PATTERN = re.compile(
+    r"(?:^[ \t]*\|.+\|[ \t]*(?:\n|$))+",
+    re.MULTILINE,
+)
+
+# "Cont'd on next page" / "Continued on next page" trailer emitted by LlamaParse
+# when a table overflows a page boundary.
+_CONT_TRAILER_RE = re.compile(
+    r"\s*Cont(?:'?d|inued)\s+on\s+next\s+page\s*$", re.IGNORECASE
+)
+# Last row of a markdown pipe table at the bottom of page N.
+_MD_TABLE_CLOSE_RE = re.compile(r"[ \t]*\|[^\n]+\|[ \t]*\s*$")
+# Opening rows of a markdown pipe table at the top of page N+1: a header row
+# followed by a separator row that LlamaParse emits on continuation pages.
+_MD_TABLE_OPEN_RE = re.compile(
+    r"^\s*\|[^\n]+\|\n[ \t]*\|[-|: \t]+\|\s*\n",
+    re.IGNORECASE,
 )
 
 
@@ -61,12 +85,190 @@ def _restore_atomic_blocks(text: str, replacements: dict[str, str]) -> str:
     return restored
 
 
+@dataclass
+class PipeTable:
+    """Lightweight AST node for a markdown pipe table.
+
+    Provides schema comparison and row-boundary splitting so large tables can
+    be divided into self-contained chunks without breaking the markdown
+    structure.
+    """
+
+    header_row: str  # raw header line, e.g. "| Col A | Col B |\n"
+    separator_row: str  # raw separator line, e.g. "|---|---|\n"
+    data_rows: list[str]  # remaining data lines (each ends with \n)
+    headers: list[str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Derive normalised column names from the raw header row."""
+        # Normalised column names used for schema comparison.
+        # Empty cells (trailing pipes, merged-cell artefacts) are excluded so
+        # that minor formatting variations like "| A | B | | |" and "| A | B |"
+        # are treated as the same schema.
+        self.headers = [
+            cell.strip().lower()
+            for cell in self.header_row.strip().strip("|").split("|")
+            if cell.strip()
+        ]
+
+    @classmethod
+    def parse(cls, raw: str) -> "PipeTable | None":
+        """Parse a raw pipe-table string. Returns None if malformed."""
+        lines = raw.splitlines(keepends=True)
+        if len(lines) < 2:
+            return None
+        sep_idx = next(
+            (
+                i
+                for i, ln in enumerate(lines)
+                if re.match(r"^[ \t]*\|[-|: \t]+\|[ \t]*$", ln.rstrip())
+            ),
+            None,
+        )
+        if sep_idx != 1:  # separator must be the second line for a valid table
+            return None
+        return cls(
+            header_row=lines[0],
+            separator_row=lines[1],
+            data_rows=lines[2:],
+        )
+
+    def same_schema(self, other: "PipeTable") -> bool:
+        """True if both tables have the same normalised column names."""
+        return self.headers == other.headers
+
+    def render_chunk(self, rows: list[str]) -> str:
+        """Render a subset of data rows as a self-contained table."""
+        return self.header_row + self.separator_row + "".join(rows)
+
+    def split_by_rows(self, chunk_size: int, overlap_rows: int = 1) -> list[str]:
+        """Return a list of self-contained table strings, each <= chunk_size chars.
+
+        Every output chunk starts with the original header + separator rows so
+        it is readable in isolation.  The last ``overlap_rows`` data rows of
+        chunk N are repeated at the start of chunk N+1 to preserve context
+        across boundaries.
+
+        A single data row that exceeds ``chunk_size`` on its own is kept intact
+        (splitting mid-row would produce malformed markdown).
+        """
+        if not self.data_rows:
+            return [self.render_chunk([])]
+
+        results: list[str] = []
+        header_overhead = len(self.header_row) + len(self.separator_row)
+        start = 0
+
+        while start < len(self.data_rows):
+            batch: list[str] = []
+            advance = 0
+            for row in self.data_rows[start:]:
+                candidate_size = header_overhead + sum(len(r) for r in batch) + len(row)
+                if batch and candidate_size > chunk_size:
+                    break
+                batch.append(row)
+                advance += 1
+
+            if not batch:
+                # Single row exceeds chunk_size — keep it intact rather than
+                # producing malformed markdown.
+                batch = [self.data_rows[start]]
+                advance = 1
+
+            results.append(self.render_chunk(batch))
+            start += max(1, advance - overlap_rows)
+
+        return results
+
+
+def _merge_split_tables(documents: list[Document]) -> list[Document]:
+    """Merge consecutive documents where a table spans a page boundary.
+
+    LlamaParse emits one Document per page.  Two split-table patterns are
+    handled:
+
+    * **Pipe tables**: previous page ends with a ``|...|`` row and the next
+      page opens with a repeated header + separator row that LlamaParse emits
+      on continuation pages.  The repeated header and separator are stripped
+      so the result is a single continuous table.
+
+    Metadata from the *first* document is preserved; a ``merged_pages`` key is
+    added when a merge occurs.  Merges are applied iteratively so tables that
+    span three or more pages are fully stitched.
+    """
+    if not documents:
+        return documents
+
+    merged: list[Document] = [documents[0]]
+    for doc in documents[1:]:
+        prev = merged[-1]
+        prev_page = prev.metadata.get("page_number", "?")
+        curr_page = doc.metadata.get("page_number", "?")
+
+        # ── Markdown pipe-table continuation ────────────────────────────────
+        # Strip the "Cont'd on next page" trailer first (it sits after the
+        # last table row as plain text), then check whether the page ends
+        # with a |...| row and the next page opens with a header+separator.
+        prev_stripped = _CONT_TRAILER_RE.sub("", prev.page_content)
+        if _MD_TABLE_CLOSE_RE.search(prev_stripped) and _MD_TABLE_OPEN_RE.match(
+            doc.page_content.lstrip()
+        ):
+            # Schema-identity check: compare the column names of the trailing
+            # table on page N with the incoming table header on page N+1.
+            # LlamaParse repeats the header+separator on every continuation
+            # page, so a mismatch means this is a *new* table, not a
+            # continuation, and the merge must not fire.
+            open_match = _MD_TABLE_OPEN_RE.match(doc.page_content.lstrip())
+            next_table = PipeTable.parse(open_match.group(0)) if open_match else None
+            prev_table_matches = list(_PIPE_TABLE_PATTERN.finditer(prev_stripped))
+            prev_table = (
+                PipeTable.parse(prev_table_matches[-1].group(0))
+                if prev_table_matches
+                else None
+            )
+
+            if prev_table and next_table and not prev_table.same_schema(next_table):
+                logger.debug(
+                    f"Not merging pages {prev_page} -> {curr_page}: "
+                    f"table schema changed "
+                    f"({prev_table.headers} → {next_table.headers})"
+                )
+                merged.append(doc)
+                continue
+
+            # Schemas match (or could not be parsed — fall through to merge).
+            logger.debug(
+                f"Merging pipe-table split across pages {prev_page} -> {curr_page}"
+            )
+            # Keep all rows from page N — the last row is data, not markup.
+            prev_body = prev_stripped
+            # Drop the repeated header+separator from page N+1 — keep only
+            # the continuation data rows.
+            curr_body = _MD_TABLE_OPEN_RE.sub("", doc.page_content.lstrip())
+            merged[-1] = Document(
+                page_content=prev_body + "\n" + curr_body,
+                metadata={
+                    **prev.metadata,
+                    "merged_pages": f"{prev_page},{curr_page}",
+                },
+            )
+            continue
+
+        merged.append(doc)
+
+    return merged
+
+
 def split_markdown_documents(documents: list[Document]) -> list[Document]:
     """Split documents with a semantic-first, size-second markdown strategy.
 
-    Stage 1: split on markdown headers to preserve section hierarchy metadata.
-    Stage 2: recursively split only oversized sections by character limits.
-    Atomic blocks (tables/fenced code) are protected so they stay intact.
+    Pre-pass: merge consecutive documents where a table spans a page boundary.
+    Stage 1:  split on markdown headers to preserve section hierarchy metadata.
+    Stage 2:  recursively split only oversized sections by character limits.
+              Atomic blocks (tables/fenced code) are protected so they stay
+              intact.  The size gate uses the *original* section length, not the
+              tokenized length, so a section containing a large table is never
+              silently emitted as an oversized chunk.
     """
     markdown_splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=HEADERS_TO_SPLIT_ON,
@@ -77,6 +279,9 @@ def split_markdown_documents(documents: list[Document]) -> list[Document]:
         chunk_overlap=CHUNK_OVERLAP,
         separators=["\n\n", "\n", ". ", " "],
     )
+
+    # Pre-pass: stitch tables that LlamaParse split across page boundaries.
+    documents = _merge_split_tables(documents)
 
     chunks: list[Document] = []
 
@@ -90,33 +295,76 @@ def split_markdown_documents(documents: list[Document]) -> list[Document]:
 
         for section in section_documents:
             merged_metadata = {**document.metadata, **section.metadata}
-            # Protect non-splittable markdown structures before recursive splitting.
-            protected_content, replacements = _protect_atomic_blocks(
-                section.page_content
-            )
 
-            if len(protected_content) <= CHUNK_SIZE:
+            # Gate on the *original* length — not the protected (tokenized)
+            # length which shrinks large tables down to ~25-char placeholders
+            # and produces a falsely small size estimate.
+            if len(section.page_content) <= CHUNK_SIZE:
                 chunks.append(
                     Document(
-                        page_content=_restore_atomic_blocks(
-                            protected_content,
-                            replacements,
-                        ),
+                        page_content=section.page_content,
                         metadata=merged_metadata,
                     )
                 )
                 continue
 
-            split_contents = recursive_splitter.split_text(protected_content)
-            for split_content in split_contents:
-                chunks.append(
-                    Document(
-                        page_content=_restore_atomic_blocks(
-                            split_content, replacements
-                        ),
-                        metadata=merged_metadata,
+            # Section is too large: walk the section linearly, splitting pipe
+            # tables at row boundaries via the PipeTable AST and recursively
+            # splitting any non-table prose (fenced code blocks stay atomic).
+            section_content = section.page_content
+            last_end = 0
+
+            for m in _PIPE_TABLE_PATTERN.finditer(section_content):
+                # Emit any prose that precedes this table via the recursive
+                # splitter, with code fences still protected as atomic blocks.
+                pre_text = section_content[last_end : m.start()]
+                if pre_text.strip():
+                    protected, replacements = _protect_atomic_blocks(pre_text)
+                    for piece in recursive_splitter.split_text(protected):
+                        restored = _restore_atomic_blocks(piece, replacements)
+                        chunks.append(
+                            Document(page_content=restored, metadata=merged_metadata)
+                        )
+
+                # Parse the table and split it at row boundaries so every
+                # output chunk is a self-contained, header-prefixed table.
+                table_ast = PipeTable.parse(m.group(0))
+                if table_ast is None:
+                    logger.warning(
+                        f"Could not parse pipe table on page "
+                        f"{merged_metadata.get('page_number', '?')} — emitting as-is"
                     )
-                )
+                    chunks.append(
+                        Document(page_content=m.group(0), metadata=merged_metadata)
+                    )
+                else:
+                    for table_chunk in table_ast.split_by_rows(CHUNK_SIZE):
+                        chunks.append(
+                            Document(page_content=table_chunk, metadata=merged_metadata)
+                        )
+
+                last_end = m.end()
+
+            # Emit any trailing prose after the last table (or the entire
+            # section if it contained no pipe tables at all, e.g. oversized
+            # prose sections or sections with only fenced code blocks).
+            tail = section_content[last_end:]
+            if tail.strip():
+                protected, replacements = _protect_atomic_blocks(tail)
+                for piece in recursive_splitter.split_text(protected):
+                    restored = _restore_atomic_blocks(piece, replacements)
+                    if len(restored) > CHUNK_SIZE:
+                        # Restored chunk exceeds limit because it contains an
+                        # atomic block (fenced code) larger than CHUNK_SIZE.
+                        # Emit intact — splitting mid-block would be worse.
+                        logger.warning(
+                            f"Chunk exceeds CHUNK_SIZE ({len(restored)} > {CHUNK_SIZE}) "
+                            f"because it contains an atomic block that cannot be split. "
+                            f"Section header: {merged_metadata.get('Header 2') or merged_metadata.get('Header 1', '(unknown)')}"
+                        )
+                    chunks.append(
+                        Document(page_content=restored, metadata=merged_metadata)
+                    )
 
     return chunks
 

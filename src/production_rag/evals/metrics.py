@@ -31,6 +31,22 @@ from ragas.metrics.collections import (
     ContextRecall,
     AnswerRelevancy,
 )
+from ragas.metrics.collections.factual_correctness.util import NLIStatementPrompt
+
+
+class _FactualPayloadNLIPrompt(NLIStatementPrompt):
+    """Custom NLI prompt that grades only the factual payload.
+
+    Citation-source mismatches (e.g., a different Table Name) are not penalised
+    as long as the core fact (numeric values, pin names, etc.) is correct.
+    """
+
+    instruction = (
+        NLIStatementPrompt.instruction
+        + "\nGrade ONLY the factual payload (e.g., numeric values, pin names). "
+        "Do not penalize the response if the citation source (e.g., Table Name) "
+        "differs from the ground truth, as long as the core fact is correct."
+    )
 
 
 def get_eval_model(model_config: ModelConfig) -> Any:
@@ -89,11 +105,13 @@ def build_ragas_metrics(
     """
     eval_model = get_eval_model(eval_llm)
     embeddings = get_embedding_eval_model(embedding_model)
+    factual_correctness = FactualCorrectness(llm=eval_model)
+    factual_correctness.nli_prompt = _FactualPayloadNLIPrompt()
     return [
         ContextPrecision(llm=eval_model),
         ContextRecall(llm=eval_model),
         Faithfulness(llm=eval_model),
-        FactualCorrectness(llm=eval_model),
+        factual_correctness,
         AnswerRelevancy(llm=eval_model, embeddings=embeddings),
     ]
 
