@@ -32,6 +32,41 @@ from ragas.metrics.collections import (
     AnswerRelevancy,
 )
 from ragas.metrics.collections.factual_correctness.util import NLIStatementPrompt
+from ragas.metrics.collections.context_recall.metric import ContextRecallPrompt
+
+
+class _TableAwareContextRecallPrompt(ContextRecallPrompt):
+    """Custom context recall prompt that handles tabular evidence.
+
+    The default prompt expects prose-style attribution and will return 0 for
+    statements that are only implicitly supported by a markdown or HTML table
+    row.  This override instructs the judge to:
+
+    1. Parse markdown pipe-table rows (``| col1 | col2 | ... |``) and HTML
+       ``<table>`` blocks before attempting attribution — the value in the
+       correct column of the correct row counts as explicit support.
+    2. Treat a markdown table and an HTML table containing the same data as
+       equivalent evidence — do not penalise a format mismatch between the
+       reference context and the retrieved context.
+    3. If a fact is unambiguously derivable by reading across the header row
+       and a single data row (e.g., "GPIO18 is pin 25" from
+       ``| 25 | GPIO18 | ... |``), classify it as attributed = 1.
+    """
+
+    instruction = (
+        ContextRecallPrompt.instruction
+        + "\nWhen the context contains a markdown pipe table (rows of the form "
+        "``| cell | cell | ... |``) or an HTML ``<table>``, read the header row "
+        "to identify column names and scan each data row for the relevant values "
+        "before deciding whether a statement is attributable. "
+        "A fact that is unambiguously derivable by joining a column header with a "
+        "data cell in the same row (e.g., the table shows ``| 25 | GPIO18 | ... |`` "
+        "so 'GPIO18 is pin 25' is supported) must be classified as attributed = 1. "
+        "Treat a markdown table and an HTML table that contain the same data as "
+        "equivalent evidence — a format difference between the reference context "
+        "and the retrieved context is not a reason to classify a statement as "
+        "not attributed."
+    )
 
 
 class _FactualPayloadNLIPrompt(NLIStatementPrompt):
@@ -107,9 +142,11 @@ def build_ragas_metrics(
     embeddings = get_embedding_eval_model(embedding_model)
     factual_correctness = FactualCorrectness(llm=eval_model)
     factual_correctness.nli_prompt = _FactualPayloadNLIPrompt()
+    context_recall = ContextRecall(llm=eval_model)
+    context_recall.prompt = _TableAwareContextRecallPrompt()
     return [
         ContextPrecision(llm=eval_model),
-        ContextRecall(llm=eval_model),
+        context_recall,
         Faithfulness(llm=eval_model),
         factual_correctness,
         AnswerRelevancy(llm=eval_model, embeddings=embeddings),

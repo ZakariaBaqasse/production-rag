@@ -19,6 +19,6 @@ eval:
     provider: "openai"
 
 retrieval:
-  top_k: 20
+  top_k: 10
   similarity_threshold: null
   reranker: "none"

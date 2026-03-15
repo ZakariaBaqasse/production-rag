@@ -180,6 +180,39 @@ class PipeTable:
 
         return results
 
+    def _first_cell(self, row: str) -> str:
+        """Return the normalised value of the first data cell in a pipe-table row."""
+        cells = row.strip().strip("|").split("|")
+        return cells[0].strip() if cells else ""
+
+    def split_by_rows_with_range(
+        self, chunk_size: int, overlap_rows: int = 4
+    ) -> list[tuple[str, str, str]]:
+        """Like split_by_rows but returns (chunk_text, key_start, key_end) tuples.
+
+        key_start and key_end are the first-column values of the first and last
+        data rows in each chunk, enabling downstream metadata pre-filters to
+        locate the chunk that plausibly contains a specific identifier.
+        """
+        if not self.data_rows:
+            return [(self.render_chunk([]), "", "")]
+
+        results: list[tuple[str, str, str]] = []
+        start = 0
+        while start < len(self.data_rows):
+            batch: list[str] = []
+            for row in self.data_rows[start:]:
+                candidate = self.render_chunk(batch + [row])
+                if len(candidate) > chunk_size and batch:
+                    break
+                batch.append(row)
+            key_start = self._first_cell(batch[0]) if batch else ""
+            key_end = self._first_cell(batch[-1]) if batch else ""
+            results.append((self.render_chunk(batch), key_start, key_end))
+            advance = len(batch) if batch else 1
+            start += max(1, advance - overlap_rows)
+        return results
+
 
 def _merge_split_tables(documents: list[Document]) -> list[Document]:
     """Merge consecutive documents where a table spans a page boundary.
@@ -338,9 +371,21 @@ def split_markdown_documents(documents: list[Document]) -> list[Document]:
                         Document(page_content=m.group(0), metadata=merged_metadata)
                     )
                 else:
-                    for table_chunk in table_ast.split_by_rows(CHUNK_SIZE):
+                    for (
+                        chunk_text,
+                        key_start,
+                        key_end,
+                    ) in table_ast.split_by_rows_with_range(CHUNK_SIZE):
+                        chunk_metadata = {
+                            **merged_metadata,
+                            "table_header": table_ast.headers[0]
+                            if table_ast.headers
+                            else "",
+                            "key_col_start": key_start,
+                            "key_col_end": key_end,
+                        }
                         chunks.append(
-                            Document(page_content=table_chunk, metadata=merged_metadata)
+                            Document(page_content=chunk_text, metadata=chunk_metadata)
                         )
 
                 last_end = m.end()
@@ -385,19 +430,25 @@ async def embed_documents(
         logger.info("Generating embeddings and storing in database...")
         # Generate embeddings in batches to avoid overwhelming the model
         batch_size = 16
+        connection = await get_db_connection()
         for i in range(0, len(chunks), batch_size):
             batch_chunks = chunks[i : i + batch_size]
             batch_content = [chunk.page_content for chunk in batch_chunks]
             batch_embeddings = await embeddings.aembed_documents(batch_content)
-            await store_embeddings_in_db(batch_embeddings, batch_chunks)
+            await store_embeddings_in_db(connection, batch_embeddings, batch_chunks)
     except Exception as e:
         logger.error(f"Error getting embedding from {model_config.provider}: {e}")
         # Return empty list or re-raise depending on strategy.
         # Here we re-raise to catch upstream
         raise
+    finally:
+        if "connection" in locals():
+            await connection.close()
 
 
-async def store_embeddings_in_db(embeddings: list[float], chunks: list[Document]):
+async def store_embeddings_in_db(
+    connection: any, embeddings: list[float], chunks: list[Document]
+):
     """Store the generated embeddings in the PostgreSQL database."""
     logger.info("Inserting into custom 'document_pages' table...")
 
@@ -408,10 +459,9 @@ async def store_embeddings_in_db(embeddings: list[float], chunks: list[Document]
         # You might need to adjust based on how you loaded the PDF
         page_num = chunk.metadata.get("page_number", 0)  # Default to 0 if not found
         try:
-            conn = await get_db_connection()
             # Convert vector list to string format for pgvector
             vector_str = "[" + ",".join(map(str, vector)) + "]"
-            await conn.execute(
+            await connection.execute(
                 """
                 INSERT INTO document_pages (page_number, content, embedding, metadata)
                 VALUES ($1, $2, $3, $4)
@@ -423,6 +473,4 @@ async def store_embeddings_in_db(embeddings: list[float], chunks: list[Document]
             )
         except Exception as e:
             logger.error(f"Failed to insert page {page_num}: {e}")
-        finally:
-            await conn.close()
     logger.info("✅ Custom Ingestion Complete.")
