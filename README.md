@@ -16,6 +16,7 @@ The pipeline leverages **LlamaParse** (a VLM-powered OCR service) to faithfully 
 - [Running the Pipeline](#running-the-pipeline)
 - [Evaluation Framework](#evaluation-framework)
 - [Experiment Artifacts](#experiment-artifacts)
+- [MLflow Experiment Tracking](#mlflow-experiment-tracking)
 - [Development](#development)
 
 ---
@@ -73,6 +74,7 @@ The pipeline leverages **LlamaParse** (a VLM-powered OCR service) to faithfully 
 | Package manager      | [uv](https://docs.astral.sh/uv/)                                                                |
 | Linting / formatting | [Ruff](https://docs.astral.sh/ruff/)                                                            |
 | Type checking        | [mypy](https://mypy.readthedocs.io/) (strict mode)                                              |
+| Experiment tracking  | [MLflow](https://mlflow.org/) (local SQLite or remote server)                                   |
 
 ---
 
@@ -271,6 +273,65 @@ artifacts/experiments/baseline-top5/
 ```
 
 This structure makes it easy to compare runs — change a single parameter (e.g. `top_k`, `similarity_threshold`, or the embedding model), re-run, and diff the reports.
+
+---
+
+## MLflow Experiment Tracking
+
+Every `rag-evaluate` run is automatically logged to MLflow. By default the tracking data is stored in a local SQLite database (`mlruns.db`) in the project root.
+
+### What is logged
+
+| Category                   | Details                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Parameters**             | `top_k`, `similarity_threshold`, `reranker`, `chat_model`, `eval_model`, `embedding_model`            |
+| **Metrics (overall)**      | `context_precision`, `context_recall`, `faithfulness`, `factual_correctness`, `answer_relevancy`      |
+| **Metrics (per-category)** | Same five metrics prefixed by category name, e.g. `pin_mapping/faithfulness`; also `{category}/count` |
+| **Artifacts**              | `config.json`, `results.csv`, `scores.csv`, `report.json` uploaded per run                            |
+| **Tags**                   | `experiment_name`, `testset_path` for quick filtering in the UI                                       |
+
+All runs are grouped under the `rag-evals` MLflow experiment.
+
+### Launching the UI
+
+After one or more evaluation runs, start the MLflow UI:
+
+```bash
+uv run mlflow ui --backend-store-uri sqlite:///mlruns.db
+```
+
+Then open [http://localhost:5000](http://localhost:5000) in your browser. From there you can:
+
+- Compare runs side-by-side on any metric
+- Filter and sort by parameters (e.g. find all runs with `reranker != none`)
+- Download or preview the per-run artifact files
+
+### CLI flags
+
+| Flag                    | Default               | Description                                                |
+| ----------------------- | --------------------- | ---------------------------------------------------------- |
+| `--mlflow-tracking-uri` | `sqlite:///mlruns.db` | Local file path or `http://` URL of a remote MLflow server |
+| `--no-mlflow`           | `false`               | Pass this flag to skip MLflow logging entirely for a run   |
+
+Example — log to a remote tracking server:
+
+```bash
+rag-evaluate \
+  --config-path configs/cloud-ollama.yaml \
+  --testset artifacts/testsets/curated_testset.csv \
+  --experiment-name "hybrid-rerank" \
+  --mlflow-tracking-uri http://my-mlflow-server:5000
+```
+
+### Backfilling historical runs
+
+If you have experiment directories that were produced before MLflow tracking was added, you can backfill them all at once:
+
+```bash
+uv run python scripts/backfill_mlflow.py
+```
+
+This walks every subdirectory under `artifacts/experiments/`, reads `report.json` and `config.json`, and logs a new MLflow run for each one.
 
 ---
 

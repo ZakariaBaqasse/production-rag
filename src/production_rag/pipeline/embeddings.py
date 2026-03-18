@@ -186,7 +186,7 @@ class PipeTable:
         return cells[0].strip() if cells else ""
 
     def split_by_rows_with_range(
-        self, chunk_size: int, overlap_rows: int = 4
+        self, chunk_size: int, overlap_rows: int = 1
     ) -> list[tuple[str, str, str]]:
         """Like split_by_rows but returns (chunk_text, key_start, key_end) tuples.
 
@@ -447,30 +447,31 @@ async def embed_documents(
 
 
 async def store_embeddings_in_db(
-    connection: any, embeddings: list[float], chunks: list[Document]
+    connection: any, embeddings: list[list[float]], chunks: list[Document]
 ):
     """Store the generated embeddings in the PostgreSQL database."""
     logger.info("Inserting into custom 'document_pages' table...")
 
-    for i, chunk in enumerate(chunks):
-        vector = embeddings[i]
-        content = chunk.page_content
-        # Extract metadata safely (Assuming your chunk metadata has these keys)
-        # You might need to adjust based on how you loaded the PDF
-        page_num = chunk.metadata.get("page_number", 0)  # Default to 0 if not found
-        try:
-            # Convert vector list to string format for pgvector
-            vector_str = "[" + ",".join(map(str, vector)) + "]"
-            await connection.execute(
+    records = [
+        (
+            int(chunk.metadata.get("page_number", 0)),
+            chunk.page_content,
+            "[" + ",".join(map(str, embeddings[i])) + "]",
+            json.dumps(chunk.metadata),
+        )
+        for i, chunk in enumerate(chunks)
+    ]
+
+    try:
+        async with connection.transaction():
+            await connection.executemany(
                 """
                 INSERT INTO document_pages (page_number, content, embedding, metadata)
                 VALUES ($1, $2, $3, $4)
-            """,
-                int(page_num),
-                content,
-                vector_str,
-                json.dumps(chunk.metadata),
+                """,
+                records,
             )
-        except Exception as e:
-            logger.error(f"Failed to insert page {page_num}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to insert batch of {len(chunks)} chunks: {e}")
+        raise
     logger.info("✅ Custom Ingestion Complete.")

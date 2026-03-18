@@ -1,0 +1,13 @@
+{
+  "experiment_name": "hybrid-search-with-reranking",
+  "testset_path": "artifacts/testsets/final_ragas_testset.csv",
+  "output_dir": "artifacts/experiments",
+  "top_k": 10,
+  "similarity_threshold": null,
+  "reranker": "ms-marco-TinyBERT-L-2-v2",
+  "chat_model": "gemini-3.1-flash-lite-preview",
+  "eval_model": "gpt-4o",
+  "embedding_model": "qwen3-embedding:0.6b",
+  "perform_hybrid_retrieval": true,
+  "candidate_k": 100
+}

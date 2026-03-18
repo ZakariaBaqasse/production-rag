@@ -77,6 +77,8 @@ class RetrievalConfig(BaseModel):
     top_k: int = 5
     similarity_threshold: float | None = None
     reranker: str = "none"
+    perform_hybrid_retrieval: bool = False
+    candidate_k: int = 100  # Number of candidates to retrieve for re-ranking in
 
 
 class AppConfig(BaseModel):
