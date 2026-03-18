@@ -34,6 +34,7 @@ async def init_db():
                 page_number INTEGER NOT NULL,
                 content TEXT,
                 embedding vector(1024),
+                content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
                 metadata JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
@@ -44,6 +45,11 @@ async def init_db():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS document_pages_embedding_idx 
             ON document_pages USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS document_pages_content_tsv_idx 
+            ON document_pages USING GIN (content_tsv);
         """)
 
         logger.info("Database initialized successfully.")

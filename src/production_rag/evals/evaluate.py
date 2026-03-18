@@ -10,10 +10,12 @@ This module executes the end-to-end Phase 2 evaluation flow:
 
 import asyncio
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from asyncpg import Record
 from dotenv import load_dotenv
 from loguru import logger
 from ragas.dataset import Dataset
@@ -36,7 +38,12 @@ from production_rag.evals.reporting import (
 )
 from production_rag.evals.schemas import ExperimentConfig, ExperimentResult
 from production_rag.evals.testset import load_testset
-from production_rag.pipeline.retrieve import generate_answer, search_custom_docs
+from production_rag.pipeline.retrieve import (
+    generate_answer,
+    retrieve_hybrid,
+    retrieve_hybrid_with_reranking,
+    search_custom_docs,
+)
 
 
 @experiment(experiment_model=ExperimentResult)
@@ -47,65 +54,107 @@ async def run_sample(
     embedding_model: ModelConfig,
     chat_model: ModelConfig,
     metrics: list[Any],
+    perform_hybrid_retrieval: bool = False,
+    candidate_k: int = 100,
+    reranker: str = "none",
 ) -> ExperimentResult:
     """Run retrieval and answer generation for one evaluation sample.
 
     This function is decorated with ``@experiment`` so RAGAS can execute it for
     each dataset row and collect typed outputs.
     """
-    user_input = row["user_input"]
+    try:
+        user_input = row["user_input"]
+        retrieved_rows: list[Record] = []
+        if perform_hybrid_retrieval and reranker != "none":
+            retrieved_rows = await retrieve_hybrid_with_reranking(
+                query=user_input,
+                model_config=embedding_model,
+                top_k=top_k,
+                candidate_k=candidate_k,  # Retrieve more candidates for re-ranking
+                reranker_model=reranker,
+            )
+        elif perform_hybrid_retrieval:
+            retrieved_rows = await retrieve_hybrid(
+                query=user_input,
+                model_config=embedding_model,
+                top_k=top_k,
+                candidate_k=candidate_k,  # Retrieve more candidates for hybrid approach
+            )
+        else:
+            retrieved_rows = await search_custom_docs(
+                query_text=user_input,
+                top_k=top_k,
+                model_config=embedding_model,
+            )
 
-    retrieved_rows = await search_custom_docs(
-        query_text=user_input,
-        top_k=top_k,
-        model_config=embedding_model,
-    )
+        # Optional hard filter to study precision/recall tradeoffs by similarity.
+        if similarity_threshold is not None:
+            retrieved_rows = [
+                result
+                for result in retrieved_rows
+                if float(result.get("similarity", 0.0)) >= similarity_threshold
+            ]
 
-    # Optional hard filter to study precision/recall tradeoffs by similarity.
-    if similarity_threshold is not None:
-        retrieved_rows = [
-            result
-            for result in retrieved_rows
-            if float(result.get("similarity", 0.0)) >= similarity_threshold
-        ]
+        retrieved_contexts = [str(result["content"]) for result in retrieved_rows]
 
-    retrieved_contexts = [str(result["content"]) for result in retrieved_rows]
+        response_text = await generate_answer(
+            query_text=user_input,
+            retrieved_docs=retrieved_rows,
+            model_config=chat_model,
+        )
 
-    response_text = await generate_answer(
-        query_text=user_input,
-        retrieved_docs=retrieved_rows,
-        model_config=chat_model,
-    )
+        sample = SingleTurnSample(
+            user_input=user_input,
+            retrieved_contexts=retrieved_contexts,
+            reference_contexts=row["reference_contexts"],
+            response=response_text,
+            reference=row["reference"],
+        )
+        metric_scores, metric_error = await score_sample_metrics(
+            metrics=metrics, sample=sample
+        )
 
-    sample = SingleTurnSample(
-        user_input=user_input,
-        retrieved_contexts=retrieved_contexts,
-        reference_contexts=row["reference_contexts"],
-        response=response_text,
-        reference=row["reference"],
-    )
-    metric_scores, metric_error = await score_sample_metrics(
-        metrics=metrics, sample=sample
-    )
-
-    return ExperimentResult(
-        user_input=user_input,
-        retrieved_contexts=retrieved_contexts,
-        response=response_text,
-        reference=row["reference"],
-        reference_contexts=row["reference_contexts"],
-        question_category=row["question_category"],
-        context_precision=metric_scores.get("context_precision"),
-        context_recall=metric_scores.get("context_recall"),
-        faithfulness=metric_scores.get("faithfulness"),
-        factual_correctness=metric_scores.get("factual_correctness"),
-        answer_relevancy=metric_scores.get("answer_relevancy"),
-        metric_error=metric_error,
-    )
+        return ExperimentResult(
+            user_input=user_input,
+            retrieved_contexts=retrieved_contexts,
+            response=response_text,
+            reference=row["reference"],
+            reference_contexts=row["reference_contexts"],
+            question_category=row["question_category"],
+            context_precision=metric_scores.get("context_precision"),
+            context_recall=metric_scores.get("context_recall"),
+            faithfulness=metric_scores.get("faithfulness"),
+            factual_correctness=metric_scores.get("factual_correctness"),
+            answer_relevancy=metric_scores.get("answer_relevancy"),
+            metric_error=metric_error,
+        )
+    except Exception as e:
+        logger.exception(
+            "Error processing sample with input: {}, {}", row.get("user_input"), e
+        )
+        return ExperimentResult(
+            user_input=row.get("user_input", ""),
+            retrieved_contexts=[],
+            response="",
+            reference=row.get("reference", ""),
+            reference_contexts=row.get("reference_contexts", []),
+            question_category=row.get("question_category", ""),
+            metric_error=str(e),
+        )
 
 
 async def _main() -> None:
     """Async implementation of the evaluation experiment CLI."""
+    for _noisy in (
+        "httpx",
+        "openai",
+        "google_genai",
+        "google_genai._api_client",
+        "openai._base_client",
+    ):
+        logging.getLogger(_noisy).setLevel(logging.WARNING)
+
     load_dotenv()
     args = parse_args()
 
@@ -129,6 +178,8 @@ async def _main() -> None:
         chat_model=app_config.pipeline.chat.model,
         eval_model=app_config.eval.llm.model,
         embedding_model=app_config.pipeline.embeddings.model,
+        perform_hybrid_retrieval=app_config.retrieval.perform_hybrid_retrieval,
+        candidate_k=app_config.retrieval.candidate_k,
     )
 
     logger.info("Loading testset from {}", testset_path)
@@ -136,18 +187,9 @@ async def _main() -> None:
     logger.info("Loaded {} evaluation samples", len(rows))
 
     print_startup_panel(
-        experiment_name=experiment_name,
-        config_file=config_path,
-        testset_path=testset_path,
+        experiment_config=config,
+        config_path=config_path,
         sample_count=len(rows),
-        chat_model=app_config.pipeline.chat.model,
-        chat_provider=app_config.pipeline.chat.provider,
-        embedding_model=app_config.pipeline.embeddings.model,
-        embedding_provider=app_config.pipeline.embeddings.provider,
-        eval_model=app_config.eval.llm.model,
-        eval_provider=app_config.eval.llm.provider,
-        top_k=app_config.retrieval.top_k,
-        similarity_threshold=app_config.retrieval.similarity_threshold,
     )
 
     dataset = Dataset(
@@ -172,6 +214,9 @@ async def _main() -> None:
         embedding_model=app_config.pipeline.embeddings,
         chat_model=app_config.pipeline.chat,
         metrics=metrics,
+        perform_hybrid_retrieval=app_config.retrieval.perform_hybrid_retrieval,
+        candidate_k=app_config.retrieval.candidate_k,
+        reranker=app_config.retrieval.reranker,
     )
     experiment_df = experiment_view.to_pandas()
 

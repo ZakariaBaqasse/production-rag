@@ -14,6 +14,7 @@ from langchain_ollama import ChatOllama
 from loguru import logger
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential
+from flashrank import Ranker, RerankRequest
 from production_rag.core.config import (
     ModelConfig,
 )
@@ -53,6 +54,98 @@ async def search_custom_docs(  # noqa: D103
     finally:
         if not conn.is_closed():
             await conn.close()
+
+
+async def retrieve_hybrid(
+    query: str,
+    model_config: ModelConfig,
+    top_k: int = 10,
+    candidate_k: int = 100,
+) -> list[asyncpg.Record]:
+    """Hybrid retrieval: RRF-fuse dense ANN + BM25, return top_k results.
+
+    candidate_k candidates are fetched from each search leg before RRF merging.
+    """
+    embeddings = get_embedding_model(model_config)
+    query_vector = await embeddings.aembed_query(query)
+    vector_str = "[" + ",".join(map(str, query_vector)) + "]"
+    conn = await get_db_connection()
+    try:
+        final_rows = await conn.fetch(
+            """
+            -- 1. The Dense Search (pgvector)
+            WITH semantic_search AS (
+                SELECT id, content, page_number,
+                    ROW_NUMBER() OVER (ORDER BY embedding <=> $1) AS rank
+                FROM document_pages
+                ORDER BY embedding <=> $1
+                LIMIT $3
+            ),
+            -- 2. The Sparse Search (BM25 / tsvector)
+            keyword_search AS (
+                SELECT id, content, page_number,
+                    ROW_NUMBER() OVER (ORDER BY ts_rank_cd(content_tsv, websearch_to_tsquery('english', $2)) DESC) AS rank
+                FROM document_pages
+                WHERE content_tsv @@ websearch_to_tsquery('english', $2)
+                ORDER BY ts_rank_cd(content_tsv, websearch_to_tsquery('english', $2)) DESC
+                LIMIT $3
+            )
+            -- 3. The RRF Merge
+            SELECT
+                COALESCE(s.id, k.id) AS document_id,
+                COALESCE(s.content, k.content) AS content,
+                COALESCE(s.page_number, k.page_number) AS page_number,
+                -- The RRF Math (using standard k=60)
+                (COALESCE(1.0 / (60 + s.rank), 0.0)) +
+                (COALESCE(1.0 / (60 + k.rank), 0.0)) AS rrf_score
+            FROM semantic_search s
+            FULL OUTER JOIN keyword_search k ON s.id = k.id
+            ORDER BY rrf_score DESC
+            LIMIT $4;
+            """,
+            vector_str,
+            query,
+            candidate_k,
+            top_k,
+        )
+
+        # Preserve RRF rank order
+        return final_rows
+    except Exception as e:
+        logger.error(f"Failed to perform hybrid retrieval: {e}")
+        return []
+    finally:
+        if not conn.is_closed():
+            await conn.close()
+
+
+async def retrieve_hybrid_with_reranking(
+    query: str,
+    model_config: ModelConfig,
+    reranker_model: str = "ms-marco-TinyBERT-L-2-v2",
+    top_k: int = 10,
+    candidate_k: int = 100,
+) -> list[asyncpg.Record]:
+    """Hybrid retrieval + LLM re-ranking.
+
+    Retrieves candidate_k documents from each leg, merges with RRF, then re-ranks the top_k results using an LLM.
+    """
+    initial_results = await retrieve_hybrid(
+        query, model_config, top_k=candidate_k, candidate_k=candidate_k
+    )
+    # Re-rank the initial results using the LLM
+    ranker = Ranker(model_name=reranker_model)
+    passages = [
+        {
+            "id": i,
+            "text": row["content"],
+            "metadata": {"page_number": row["page_number"]},
+        }
+        for i, row in enumerate(initial_results)
+    ]
+    rerank_request = RerankRequest(query=query, passages=passages)
+    reranked_results = ranker.rerank(rerank_request)
+    return [initial_results[r["id"]] for r in reranked_results[:top_k]]
 
 
 generation_system_prompt = """\

@@ -102,34 +102,36 @@ def ensure_experiment_dir(base_output_dir: Path, experiment_name: str) -> Path:
 
 
 def print_startup_panel(
-    experiment_name: str,
-    config_file: Path,
-    testset_path: Path,
-    sample_count: int,
-    chat_model: str,
-    chat_provider: str,
-    embedding_model: str,
-    embedding_provider: str,
-    eval_model: str,
-    eval_provider: str,
-    top_k: int,
-    similarity_threshold: float | None,
+    experiment_config: ExperimentConfig, config_path: str, sample_count: int
 ) -> None:
     """Render a startup panel summarising the experiment configuration."""
     threshold_str = (
-        str(similarity_threshold) if similarity_threshold is not None else "none"
+        str(experiment_config.similarity_threshold)
+        if experiment_config.similarity_threshold is not None
+        else "none"
+    )
+    reranker = (
+        experiment_config.reranker if experiment_config.reranker != "none" else "none"
+    )
+    candidate_k_str = (
+        str(experiment_config.candidate_k)
+        if experiment_config.perform_hybrid_retrieval
+        else "N/A"
     )
     content = (
-        f"[bold cyan]Experiment[/bold cyan]       {experiment_name}\n"
-        f"[bold cyan]Config file[/bold cyan]      {config_file}\n"
-        f"[bold cyan]Testset[/bold cyan]          {testset_path}  ([bold]{sample_count}[/bold] samples)\n"
+        f"[bold cyan]Experiment[/bold cyan]       {experiment_config.experiment_name}\n"
+        f"[bold cyan]Config file[/bold cyan]      {config_path}\n"
+        f"[bold cyan]Testset[/bold cyan]          {experiment_config.testset_path}  ([bold]{sample_count}[/bold] samples)\n"
         "\n"
-        f"[bold cyan]Chat model[/bold cyan]       {chat_model}  [dim]({chat_provider})[/dim]\n"
-        f"[bold cyan]Embeddings[/bold cyan]       {embedding_model}  [dim]({embedding_provider})[/dim]\n"
-        f"[bold cyan]Eval LLM[/bold cyan]         {eval_model}  [dim]({eval_provider})[/dim]\n"
+        f"[bold cyan]Chat model[/bold cyan]       {experiment_config.chat_model} \n"
+        f"[bold cyan]Embeddings[/bold cyan]       {experiment_config.embedding_model}\n"
+        f"[bold cyan]Eval LLM[/bold cyan]         {experiment_config.eval_model}\n"
         "\n"
-        f"[bold cyan]Top-K[/bold cyan]            {top_k}\n"
+        f"[bold cyan]Top-K[/bold cyan]            {experiment_config.top_k}\n"
         f"[bold cyan]Sim. threshold[/bold cyan]   {threshold_str}\n"
+        f"[bold cyan]Reranker[/bold cyan]        {reranker}\n"
+        f"[bold cyan]Hybrid retrieval[/bold cyan] {experiment_config.perform_hybrid_retrieval}\n"
+        f"[bold cyan]Candidate K (hybrid)[/bold cyan] {candidate_k_str}\n"
     )
     console.print(
         Panel(content, title="[bold]RAG Evaluation[/bold]", border_style="cyan")

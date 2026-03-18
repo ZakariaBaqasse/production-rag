@@ -22,6 +22,10 @@ class ExperimentConfig(BaseModel):
     chat_model: str
     eval_model: str
     embedding_model: str
+    perform_hybrid_retrieval: bool = False
+    candidate_k: int = (
+        100  # Number of candidates to retrieve for re-ranking in hybrid retrieval
+    )
 
 
 class ExperimentResult(BaseModel):
