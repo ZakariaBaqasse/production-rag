@@ -43,6 +43,7 @@ dev = [
 rag-ingest = "production_rag.pipeline.ingest:main"
 rag-evaluate = "production_rag.evals.evaluate:main"
 rag-generate-testset = "production_rag.evals.generate_testset:main"
+rag-ask-demo = "production_rag.demo.ask:main"
 
 [tool.taskipy.tasks]
 lint = "ruff check src/"
