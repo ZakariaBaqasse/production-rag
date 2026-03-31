@@ -1,0 +1,26 @@
+# configs/local-ollama.yaml
+pipeline:
+  chat:
+    model: "gpt-4o"
+    provider: "openai"
+    temperature: 0.0
+    max_tokens: 8096
+  embeddings:
+    model: "qwen3-embedding:0.6b"
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+
+eval:
+  llm:
+    model: "gpt-4o"
+    provider: "openai"
+  embeddings:
+    model: "text-embedding-3-small"
+    provider: "openai"
+
+retrieval:
+  top_k: 20
+  similarity_threshold: null
+  perform_hybrid_retrieval: true
+  candidate_k: 100
+  reranker: "ms-marco-TinyBERT-L-2-v2"
